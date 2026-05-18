@@ -8,7 +8,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLogout, role }: DashboardProps) {
-  // State for raw data and metrics
+  // State for raw data and metrics - safely initialized as an array
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,13 +29,13 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
   const [newStatus, setNewStatus] = useState<LeadStatus>('New');
   const [newSource, setNewSource] = useState<LeadSource>('Website');
 
-  // Compute real-time analytics by scanning the current dataset array state
-  const totalNew = leads.filter(l => l.status === 'New').length;
-  const totalContacted = leads.filter(l => l.status === 'Contacted').length;
-  const totalQualified = leads.filter(l => l.status === 'Qualified').length;
+  // Compute real-time analytics by scanning the array state with safe optional chaining guards
+  const totalNew = Array.isArray(leads) ? leads.filter(l => l?.status === 'New').length : 0;
+  const totalContacted = Array.isArray(leads) ? leads.filter(l => l?.status === 'Contacted').length : 0;
+  const totalQualified = Array.isArray(leads) ? leads.filter(l => l?.status === 'Qualified').length : 0;
   
-  // Calculate a conversion percentage safely to prevent Division-by-Zero errors
-  const conversionRate = leads.length > 0 
+  // Calculate a conversion percentage safely to prevent Division-by-Zero or undefined errors
+  const conversionRate = Array.isArray(leads) && leads.length > 0 
     ? Math.round((totalQualified / leads.length) * 100) 
     : 0;
 
@@ -55,13 +55,18 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
       });
 
       const response = await api.get<LeadsAPIResponse>(`/leads?${queryParams.toString()}`);
-      if (response.success) {
-        setLeads(response.data);
-        setTotalPages(response.pagination.totalPages);
-        setTotalRecords(response.pagination.totalRecords);
+      if (response && response.success) {
+        // Handle variations where data might be nested or direct arrays safely
+        const incomingData = Array.isArray(response.data) ? response.data : [];
+        setLeads(incomingData);
+        setTotalPages(response.pagination?.totalPages || 1);
+        setTotalRecords(response.pagination?.totalRecords || incomingData.length);
+      } else {
+        setLeads([]);
       }
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
+      setLeads([]); // Fallback array to prevent rendering execution loop crashes
     } finally {
       setLoading(false);
     }
@@ -148,7 +153,7 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
         </div>
       </header>
 
-      {/* NEW SECTION: Analytics Grid Metrics Display Cards Block */}
+      {/* Analytics Grid Metrics Display Cards Block */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-slate-800/60 border border-slate-800 p-4 rounded-2xl">
           <p className="text-xs font-bold uppercase text-slate-400 tracking-wider">Total Leads</p>
@@ -234,7 +239,7 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
           <div className="p-12 text-center text-slate-400 font-medium">Querying active operational arrays...</div>
         ) : error ? (
           <div className="p-12 text-center text-rose-400 font-medium">⚠️ Core error reading parameters: {error}</div>
-        ) : leads.length === 0 ? (
+        ) : !Array.isArray(leads) || leads.length === 0 ? (
           <div className="p-12 text-center text-slate-500 font-medium">No matching sales documents found inside this filter frame.</div>
         ) : (
           <div className="overflow-x-auto">
@@ -250,36 +255,38 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
               </thead>
               <tbody className="divide-y divide-slate-700/40 text-sm">
                 {leads.map((lead) => (
-                  <tr key={lead._id} className="hover:bg-slate-700/20 transition-colors">
-                    <td className="p-4 font-semibold text-white">{lead.name}</td>
-                    <td className="p-4 text-slate-300">{lead.email}</td>
-                    <td className="p-4">
-                      <select
-                        value={lead.status}
-                        onChange={(e) => handleStatusChange(lead._id, e.target.value as LeadStatus)}
-                        className={`px-2.5 py-1 text-xs font-bold rounded-xl bg-slate-900 border focus:outline-none transition-colors cursor-pointer ${
-                          lead.status === 'New' ? 'text-blue-400 border-blue-500/30 focus:border-blue-500' :
-                          lead.status === 'Contacted' ? 'text-amber-400 border-amber-500/30 focus:border-amber-500' :
-                          lead.status === 'Qualified' ? 'text-emerald-400 border-emerald-500/30 focus:border-emerald-500' :
-                          'text-rose-400 border-rose-500/30 focus:border-rose-500'
-                        }`}
-                      >
-                        <option value="New">New</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Qualified">Qualified</option>
-                        <option value="Lost">Lost</option>
-                      </select>
-                    </td>
-                    <td className="p-4 text-slate-400 text-xs font-medium">{lead.source}</td>
-                    <td className="p-4 text-right">
-                      <button
-                        onClick={() => handleDeleteLead(lead._id)}
-                        className="px-2.5 py-1 text-xs bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500/20 transition-all font-medium cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+                  lead && (
+                    <tr key={lead._id} className="hover:bg-slate-700/20 transition-colors">
+                      <td className="p-4 font-semibold text-white">{lead.name}</td>
+                      <td className="p-4 text-slate-300">{lead.email}</td>
+                      <td className="p-4">
+                        <select
+                          value={lead.status}
+                          onChange={(e) => handleStatusChange(lead._id, e.target.value as LeadStatus)}
+                          className={`px-2.5 py-1 text-xs font-bold rounded-xl bg-slate-900 border focus:outline-none transition-colors cursor-pointer ${
+                            lead.status === 'New' ? 'text-blue-400 border-blue-500/30 focus:border-blue-500' :
+                            lead.status === 'Contacted' ? 'text-amber-400 border-amber-500/30 focus:border-amber-500' :
+                            lead.status === 'Qualified' ? 'text-emerald-400 border-emerald-500/30 focus:border-emerald-500' :
+                            'text-rose-400 border-rose-500/30 focus:border-rose-500'
+                          }`}
+                        >
+                          <option value="New">New</option>
+                          <option value="Contacted">Contacted</option>
+                          <option value="Qualified">Qualified</option>
+                          <option value="Lost">Lost</option>
+                        </select>
+                      </td>
+                      <td className="p-4 text-slate-400 text-xs font-medium">{lead.source}</td>
+                      <td className="p-4 text-right">
+                        <button
+                          onClick={() => handleDeleteLead(lead._id)}
+                          className="px-2.5 py-1 text-xs bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500/20 transition-all font-medium cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  )
                 ))}
               </tbody>
             </table>
