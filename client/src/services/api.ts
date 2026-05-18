@@ -17,32 +17,35 @@ export const api = {
       headers: getHeaders(),
     });
     if (!res.ok) throw new Error(`GET ${endpoint} failed with status ${res.status}`);
-    return res.json();
+    const data: unknown = await res.json();
+    return data as T; 
   },
 
   // Generic POST request handler
-  async post<T>(endpoint: string, body: any): Promise<T> {
+  async post<T>(endpoint: string, body: unknown): Promise<T> {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
+      const errData = (await res.json().catch(() => ({}))) as { message?: string };
       throw new Error(errData.message || `POST ${endpoint} failed`);
     }
-    return res.json();
+    const data: unknown = await res.json();
+    return data as T; 
   },
 
   // Generic PUT request handler
-  async put<T>(endpoint: string, body: any): Promise<T> {
+  async put<T>(endpoint: string, body: unknown): Promise<T> {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: getHeaders(),
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`PUT ${endpoint} failed`);
-    return res.json();
+    const data: unknown = await res.json();
+    return data as T;
   },
 
   // Generic DELETE request handler
@@ -52,6 +55,7 @@ export const api = {
       headers: getHeaders(),
     });
     if (!res.ok) throw new Error(`DELETE ${endpoint} failed`);
-    return res.json();
+    const data: unknown = await res.json();
+    return data as T;
   },
 };

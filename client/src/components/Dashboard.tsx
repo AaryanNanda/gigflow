@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import type { Lead, LeadsAPIResponse, LeadStatus, LeadSource } from '../types';
+import type { Lead, LeadStatus, LeadSource } from '../types';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -8,7 +8,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLogout, role }: DashboardProps) {
-  // State for raw data and metrics - safely initialized as an array
+  // State for raw data and metrics
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,12 +29,12 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
   const [newStatus, setNewStatus] = useState<LeadStatus>('New');
   const [newSource, setNewSource] = useState<LeadSource>('Website');
 
-  // Compute real-time analytics by scanning the array state with safe optional chaining guards
+  // Compute real-time analytics by scanning the current dataset array state safely
   const totalNew = Array.isArray(leads) ? leads.filter(l => l?.status === 'New').length : 0;
   const totalContacted = Array.isArray(leads) ? leads.filter(l => l?.status === 'Contacted').length : 0;
   const totalQualified = Array.isArray(leads) ? leads.filter(l => l?.status === 'Qualified').length : 0;
   
-  // Calculate a conversion percentage safely to prevent Division-by-Zero or undefined errors
+  // Calculate a conversion percentage safely to prevent Division-by-Zero errors
   const conversionRate = Array.isArray(leads) && leads.length > 0 
     ? Math.round((totalQualified / leads.length) * 100) 
     : 0;
@@ -54,19 +54,31 @@ export default function Dashboard({ onLogout, role }: DashboardProps) {
         ...(sourceFilter && { source: sourceFilter }),
       });
 
-      const response = await api.get<LeadsAPIResponse>(`/leads?${queryParams.toString()}`);
-      if (response && response.success) {
-        // Handle variations where data might be nested or direct arrays safely
-        const incomingData = Array.isArray(response.data) ? response.data : [];
-        setLeads(incomingData);
-        setTotalPages(response.pagination?.totalPages || 1);
-        setTotalRecords(response.pagination?.totalRecords || incomingData.length);
+      // Explicitly defined structural type mapping here to eliminate ESLint implicit any warnings
+      const response = await api.get<{
+        success: boolean;
+        total?: number;
+        leads?: Lead[];
+      }>(`/leads?${queryParams.toString()}`);
+      
+      console.log("📡 DEBUG GIGFLOW API RESPONSE:", response);
+      
+      // Match the exact keys returned by your backend payload: response.leads and response.total
+      if (response && response.success && Array.isArray(response.leads)) {
+        setLeads(response.leads);
+        
+        // Explicit primitive casting to completely clear any strict type warnings on calculation
+        const recordsCount: number = Number(response.total) || response.leads.length;
+        setTotalRecords(recordsCount);
+        
+        const calculatedPages: number = Math.ceil(recordsCount / 10);
+        setTotalPages(calculatedPages > 0 ? calculatedPages : 1);
       } else {
         setLeads([]);
       }
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message);
-      setLeads([]); // Fallback array to prevent rendering execution loop crashes
+      setLeads([]);
     } finally {
       setLoading(false);
     }
