@@ -1,50 +1,43 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// Extend the Express Request interface to securely hold user details
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    role: 'Admin' | 'Sales User';
-  };
+interface UserPayload {
+  id: string;
+  role: 'Admin' | 'Manager';
 }
 
-// Middleware to protect routes against unauthenticated requests
-export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  let token;
-
-  // Check for token in the Authorization header (Format: Bearer <token>)
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
-
-      // Verify the token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_for_development') as any;
-
-      // Attach decoded payload (id and role) to request object
-      req.user = {
-        id: decoded.id,
-        role: decoded.role
-      };
-
-      next();
-    } catch (error) {
-      res.status(401).json({ success: false, message: 'Not authorized, token invalid or expired' });
+declare global {
+  namespace Express {
+    interface Request {
+      user?: UserPayload;
     }
   }
+}
 
-  if (!token) {
-    res.status(401).json({ success: false, message: 'Not authorized, no token provided' });
+export const authenticateJWT = (req: Request, res: Response, next: NextFunction): void => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ success: false, message: 'Authentication credential headers missing.' });
+    return;
   }
-};
 
-// Middleware to restrict routes to specific roles (Role-Based Access Control)
-export const authorize = (...allowedRoles: ('Admin' | 'Sales User')[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
-      res.status(403).json({ success: false, message: 'Forbidden: You do not have permission to perform this action' });
+  const token = authHeader.split(' ')[1];
+
+  jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret', (err, decoded) => {
+    if (err) {
+      res.status(403).json({ success: false, message: 'Invalid session signatures.' });
       return;
     }
+    req.user = decoded as UserPayload;
     next();
-  };
+  });
+};
+
+export const requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
+  if (!req.user || req.user.role !== 'Admin') {
+    res.status(403).json({ success: false, message: 'Access denied: Administrative clearance required.' });
+    return;
+  }
+  next();
 };

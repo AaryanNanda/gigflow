@@ -52,6 +52,31 @@ gigflow/
 
 ---
 
+---
+
+## 🔌 API Endpoints Documentation
+
+All requests to the backend must clear the base route framework: `http://localhost:8080/api`
+
+### 🔑 Authentication Module
+* **`POST /auth/register`** - Registers a new user mapping profile.
+  * *Request Body*: `{ "name": "Name", "email": "user@test.com", "password": "password", "role": "Manager" }`
+* **`POST /auth/login`** - Authenticates credentials and issues a cryptographic session token.
+  * *Request Body*: `{ "email": "user@test.com", "password": "password" }`
+  * *Response*: `{ "success": true, "token": "JWT_STRING_HERE", "role": "Admin" }`
+
+### 📈 Leads Management Module (JWT Shielded)
+* **`GET /leads`** - Fetches paginated sales records (Supports search query parameters `?page=1&limit=10&search=...&status=...&source=...`).
+  * *Headers*: `Authorization: Bearer <token>`
+* **`POST /leads`** - Creates a fresh pipeline entry.
+  * *Headers*: `Authorization: Bearer <token>`
+  * *Request Body*: `{ "name": "Lead Name", "email": "lead@email.com", "status": "New", "source": "Website" }`
+* **`PUT /leads/:id`** - Mutates an existing lead status inline.
+  * *Headers*: `Authorization: Bearer <token>`
+  * *Request Body*: `{ "status": "Contacted" }`
+* **`DELETE /leads/:id`** - **[ADMIN ONLY]** Deletes a lead record permanently.
+  * *Headers*: `Authorization: Bearer <token>`
+
 ## ⚡ Local Setup & Deployment
 
 Follow these sequential steps to get the full-stack infrastructure spinning locally on your machine from scratch.

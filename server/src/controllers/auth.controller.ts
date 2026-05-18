@@ -1,78 +1,48 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
-import { generateToken } from '../utils/auth';
 
-// @desc    Register a new user
-// @route   POST /api/auth/register
-export const registerUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, password, role } = req.body;
-
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      res.status(400).json({ success: false, message: 'User already exists' });
+    const existingUser = await User.findOne({ email });
+    
+    if (existingUser) {
+      res.status(400).json({ success: false, message: 'User profile already exists.' });
       return;
     }
 
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role
-    });
+    const newUser = new User({ name, email, password, role: role || 'Manager' });
+    await newUser.save();
 
-    // Forced bypass conversion
-    const token = generateToken(user._id as any, user.role);
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    });
+    res.status(201).json({ success: true, message: 'User registered successfully.' });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: 'Internal server registration error.' });
   }
 };
 
-// @desc    Authenticate user & get token
-// @route   POST /api/auth/login
-export const loginUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
-
     const user = await User.findOne({ email });
-    if (!user) {
-      res.status(401).json({ success: false, message: 'Invalid email or password' });
+
+    if (!user || !(await user.comparePassword(password))) {
+      res.status(401).json({ success: false, message: 'Invalid email or password parameters.' });
       return;
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      res.status(401).json({ success: false, message: 'Invalid email or password' });
-      return;
-    }
-
-    // Forced bypass conversion
-    const token = generateToken(user._id as any, user.role);
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '1d' }
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role }
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: 'Internal server authentication error.' });
   }
 };

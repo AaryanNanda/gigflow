@@ -1,33 +1,43 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './routes/auth.routes';
-import { router as leadRoutes } from './routes/lead.routes'; // Named import matches perfectly now!
+import { connectDatabase } from './config/db';
+import { authRouter } from './routes/auth.routes';
+import { leadRouter } from './routes/lead.routes';
 
+// Load environmental parameters into active processing memory
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Universal Middleware Pipelines
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/leads', leadRoutes);
+// Main Core API Routing Matrix Map
+app.use('/api/auth', authRouter);
+app.use('/api/leads', leadRouter);
 
-app.get('/', (req, res) => {
-  res.send('Server is up and running safely!');
+// Health Check validation channel
+app.get('/health', (_req, res) => {
+  res.status(200).json({ success: true, message: 'System core is functional.' });
 });
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/gigflow';
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB successfully.');
-    app.listen(PORT, () => console.log(`🚀 Server listening on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB database connection error:', err);
-  });
+// Decoupled bootstrapping runner engine
+const bootstrapApplicationServer = async (): Promise<void> => {
+  try {
+    // Await database channel configuration setup
+    await connectDatabase();
+
+    // Bind Express service pipeline to network interface channel
+    app.listen(PORT, () => {
+      console.log(`🚀 Server listening on operational pipeline port: ${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ Bootstrapping routine interrupted by an unhandled exception:', error);
+    process.exit(1);
+  }
+};
+
+bootstrapApplicationServer();
