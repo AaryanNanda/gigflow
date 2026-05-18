@@ -1,4 +1,7 @@
-const BASE_URL = 'http://localhost:8080/api';
+// Dynamically point to Render in production, fallback to local port in development
+const BASE_URL = import.meta.env.PROD 
+  ? 'https://gigflow-backend.onrender.com/api' // 👈 Replace with your exact Render Web Service URL
+  : 'http://localhost:8080/api';
 
 // Helper to grab headers with the auth token automatically attached
 const getHeaders = (): HeadersInit => {
